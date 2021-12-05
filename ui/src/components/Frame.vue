@@ -1,16 +1,14 @@
 <template>
     <main>
         <div class="search-bar">
-            <input type="search" style="width: 100%" placeholder="Search...">
+            <input type="search" placeholder="Search...">
         </div>
         <div class="tabs">
-            <div class="tab tab-active">Folders</div>
-            <div class="tab">Albums</div>
-            <div class="tab">Artists</div>
+            <div class="tab" :class="{ 'tab-active': tab === activeTab }" @click="activeTab = tab" v-for="tab in tabs">{{ tab }}</div>
         </div>
         <div class="list">
             <div v-for="i in 100" class="list-item">
-                <i class="far fa-folder"></i>
+                <i class="fas fa-folder"></i>
                 <span style="margin-left: 0.5rem">Folder {{ i }}</span>
             </div>
         </div>
@@ -26,6 +24,21 @@
         </footer>
     </main>
 </template>
+
+<script>
+export default {
+    data() {
+        return {
+            tabs: [
+                'Folders',
+                'Albums',
+                'Artists'
+            ],
+            activeTab: 'Folders'
+        }
+    }
+}
+</script>
 
 <style scoped>
 main {
@@ -61,6 +74,10 @@ main > .nav-bar {
   grid-area: nav-bar;
 }
 
+.search-bar {
+    padding: 1rem;
+}
+
 .search-bar > input {
     outline: 0;
     border: 0;
@@ -68,11 +85,14 @@ main > .nav-bar {
     padding: 0.5rem;
     background-color: var(--search-background-color);
     color: var(--tab-active-text-color);
+    font-weight: 500;
+    width: 100%;
+    border-radius: 3px;
 }
 
 .tabs {
     display: flex;
-    padding-top: 1rem;
+    padding-top: 0.5rem;
     padding-left: 1rem;
     padding-bottom: 0.5rem;
     /* border-bottom: 1px solid var(--default-border-color); */
