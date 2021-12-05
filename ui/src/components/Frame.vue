@@ -2,6 +2,9 @@
     <main>
         <div class="search-bar">
             <input type="search" placeholder="Search...">
+            <div class="settings">
+                <i class="fas fa-sliders-h"></i>
+            </div>
         </div>
         <div class="tabs">
             <div class="tab" :class="{ 'tab-active': tab === activeTab }" @click="activeTab = tab" v-for="tab in tabs">{{ tab }}</div>
@@ -75,6 +78,7 @@ main > .nav-bar {
 }
 
 .search-bar {
+    display: flex;
     padding: 1rem;
 }
 
@@ -88,6 +92,13 @@ main > .nav-bar {
     font-weight: 500;
     width: 100%;
     border-radius: 3px;
+}
+
+.settings {
+    font-size: 1.2rem;
+    margin-left: 1rem;
+    display: flex;
+    align-items: center;
 }
 
 .tabs {
