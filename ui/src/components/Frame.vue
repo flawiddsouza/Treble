@@ -7,7 +7,7 @@
             </div>
         </div>
         <div class="tabs">
-            <div class="tab" :class="{ 'tab-active': tab === activeTab }" @click="activeTab = tab" v-for="tab in tabs">{{ tab }}</div>
+            <div class="tab" v-for="tab in tabs" @click="activeTab = tab" :class="{ 'tab-active': tab === activeTab }">{{ tab }}</div>
         </div>
         <div class="list">
             <div v-for="i in 100" class="list-item">
@@ -16,13 +16,9 @@
             </div>
         </div>
         <footer class="nav-bar">
-            <div class="nav-bar-item">
-                <i class="fas fa-music"></i>
-                <span style="margin-left: 0.5rem">Your Library</span>
-            </div>
-            <div class="nav-bar-item">
-                <i class="fas fa-search"></i>
-                <span style="margin-left: 0.5rem">Browse</span>
+            <div class="nav-bar-item" v-for="navItem in navItems" @click="activeNavItem = navItem.name" :class="{ 'nav-bar-item-active': navItem.name === activeNavItem }">
+                <i :class="navItem.icon"></i>
+                <span style="margin-left: 0.5rem">{{ navItem.name }}</span>
             </div>
         </footer>
     </main>
@@ -37,7 +33,18 @@ export default {
                 'Albums',
                 'Artists'
             ],
-            activeTab: 'Folders'
+            activeTab: 'Folders',
+            navItems: [
+                {
+                    name: 'Your Library',
+                    icon: 'fas fa-music'
+                },
+                {
+                    name: 'Browse',
+                    icon: 'fas fa-search'
+                }
+            ],
+            activeNavItem: 'Your Library'
         }
     }
 }
@@ -158,5 +165,10 @@ main > .nav-bar {
     padding: 1rem;
     width: 100%;
     text-align: center;
+}
+
+.nav-bar-item-active {
+    background-color: var(--nav-item-active-background-color);
+    font-weight: 500;
 }
 </style>
