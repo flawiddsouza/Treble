@@ -9,7 +9,39 @@ html, body, #app {
 html {
     --font-default: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light',
     'Ubuntu', 'Droid Sans', sans-serif;
-    --default-border-color: lightgrey;
+    --default-border-color: #8272ff;
+    --background-color: #483e9a;
+    --text-color: white;
+    --tab-active-background-color: #cec8ff;
+    --tab-active-text-color: var(--background-color);
+    --search-background-color: var(--tab-active-background-color);
+}
+
+html.turqoise-dreams {
+    --default-border-color: #25d4ac;
+    --background-color: #034c50;
+    --text-color: #25d4ac;
+    --tab-active-background-color: #6dceab;
+    --tab-active-text-color: var(--background-color);
+    --search-background-color: var(--tab-active-background-color);
+}
+
+html.royalty {
+    --default-border-color: #ffbc00;
+    --background-color: #013f42;
+    --text-color: #f1ba57;
+    --tab-active-background-color: #ffbc00;
+    --tab-active-text-color: var(--background-color);
+    --search-background-color: var(--tab-active-background-color);
+}
+
+html.dark-mode {
+    --default-border-color: #3a3a3a;
+    --background-color: #121212;
+    --text-color: #f3efef;
+    --tab-active-background-color: #3e3e3e;
+    --tab-active-text-color: #ffffff;
+    --search-background-color: #404040;
 }
 
 body {

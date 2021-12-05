@@ -40,6 +40,9 @@ main {
         'list'
         'nav-bar'
     ;
+
+    background: var(--background-color);
+    color: var(--text-color);
 }
 
 main > .search-bar {
@@ -63,6 +66,8 @@ main > .nav-bar {
     border: 0;
     border-bottom: 1px solid var(--default-border-color);
     padding: 0.5rem;
+    background-color: var(--search-background-color);
+    color: var(--tab-active-text-color);
 }
 
 .tabs {
@@ -93,8 +98,8 @@ main > .nav-bar {
 }
 
 .tab-active {
-    background-color: #3300ff36;
-    color: #3300ffa6;
+    background-color: var(--tab-active-background-color);
+    color: var(--tab-active-text-color);
     font-weight: 500;
     border: 1px solid transparent;
 }
