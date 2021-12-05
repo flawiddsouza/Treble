@@ -1,0 +1,30 @@
+* {
+    box-sizing: border-box;
+}
+
+html, body, #app {
+    height: 100%;
+}
+
+html {
+    --font-default: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light',
+    'Ubuntu', 'Droid Sans', sans-serif;
+    --default-border-color: lightgrey;
+}
+
+body {
+    font-family: var(--font-default);
+    font-size: 13px;
+    user-select: none;
+}
+
+::-webkit-scrollbar {
+    width: 9px;
+    height: 5px;
+    background-color: #f3f2f2;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #dfdfdf;
+    height: 70%;
+}
