@@ -1,7 +1,7 @@
 <template>
     <main>
         <div class="search-bar">
-            <input type="search" placeholder="Search...">
+            <input type="search" placeholder="Search..." v-model="search">
             <div class="settings">
                 <i class="fas fa-sliders-h"></i>
             </div>
@@ -10,10 +10,45 @@
             <div class="tab" v-for="tab in tabs" @click="activeTab = tab" :class="{ 'tab-active': tab === activeTab }">{{ tab }}</div>
         </div>
         <div class="list">
-            <div v-for="i in 100" class="list-item">
-                <i class="fas fa-folder"></i>
-                <span style="margin-left: 0.5rem">Folder {{ i }}</span>
+            <div class="list-item" v-if="dataNavigationStack.length > 1" @click="navigateUp">
+                <i class="fas fa-arrow-left"></i>
+                <span style="margin-left: 0.5rem">Go back</span>
             </div>
+            <div v-for="item in computedData" class="list-item" @click="handleClick(item)" :class="{ 'list-item-active': selectedTrack && item.path === selectedTrack.path }">
+                <template v-if="activeTab === 'Folders'">
+                    <i class="fas fa-folder" v-if="item.children.length > 0"></i>
+                    <i class="fas fa-music" v-else></i>
+                    <span style="margin-left: 0.5rem">{{ generateTrackTitle(item) }}</span>
+                </template>
+                <template v-if="activeTab === 'Albums'">
+                    <template v-if="'id' in item === false">
+                        <i class="fas fa-folder"></i>
+                        <span style="margin-left: 0.5rem">{{ generateAlbumTitle(item) }}</span>
+                    </template>
+                    <template v-else>
+                        <i class="fas fa-music"></i>
+                        <span style="margin-left: 0.5rem">{{ generateTrackTitle(item) }}</span>
+                    </template>
+                </template>
+                <template v-if="activeTab === 'Artists'">
+                    <template v-if="'id' in item === false">
+                        <i class="fas fa-user"></i>
+                        <span style="margin-left: 0.5rem">{{ item.artist }}</span>
+                    </template>
+                    <template v-else>
+                        <i class="fas fa-music"></i>
+                        <span style="margin-left: 0.5rem">{{ generateTrackTitle(item) }}</span>
+                    </template>
+                </template>
+            </div>
+        </div>
+        <div class="player" v-if="selectedTrack">
+            <AudioPlayer
+                :src="`${API_URL}/track?path=${encodeURIComponent(selectedTrack.path)}`"
+                @ended="handleEnd"
+                @previous="handlePrevious"
+                @next="handleNext"
+            ></AudioPlayer>
         </div>
         <footer class="nav-bar">
             <div class="nav-bar-item" v-for="navItem in navItems" @click="activeNavItem = navItem.name" :class="{ 'nav-bar-item-active': navItem.name === activeNavItem }">
@@ -25,7 +60,13 @@
 </template>
 
 <script>
+import AudioPlayer from '@/components/AudioPlayer.vue'
+import { API_URL, fetchFolders, fetchAlbums, fetchArtists, fetchAlbum, fetchArtist } from '@/api'
+
 export default {
+    components: {
+        AudioPlayer
+    },
     data() {
         return {
             tabs: [
@@ -44,8 +85,212 @@ export default {
                     icon: 'fas fa-search'
                 }
             ],
-            activeNavItem: 'Your Library'
+            activeNavItem: 'Your Library',
+            currentData: null,
+            dataNavigationStack: [],
+            selectedTrack: null,
+            search: ''
         }
+    },
+    computed: {
+        computedData() {
+            if(this.activeTab === 'Folders') {
+                let data = this.currentData
+
+                if(this.search) {
+                    data = data.filter(item => item.name.toLowerCase().includes(this.search.toLowerCase()))
+                }
+
+                return data
+            }
+
+            if(this.activeTab === 'Albums') {
+                let data = this.currentData
+
+                if(this.search) {
+                    data = data.filter(item => {
+                        if('id' in item === false) {
+                            return this.generateAlbumTitle(item).toLowerCase().includes(this.search.toLowerCase())
+                        } else {
+                            return this.generateTrackTitle(item).toLowerCase().includes(this.search.toLowerCase())
+                        }
+                    })
+                }
+
+                return data
+            }
+
+            if(this.activeTab === 'Artists') {
+                let data = this.currentData
+
+                if(this.search) {
+                    data = data.filter(item => {
+                        if('id' in item === false) {
+                            return item.artist && item.artist.toLowerCase().includes(this.search.toLowerCase())
+                        } else {
+                            return this.generateTrackTitle(item).toLowerCase().includes(this.search.toLowerCase())
+                        }
+                    })
+                }
+
+                return data
+            }
+        },
+        API_URL() {
+            return API_URL
+        }
+    },
+    watch: {
+        activeTab() {
+            switch(this.activeTab) {
+                case 'Folders':
+                    this.fetchFolders()
+                    break
+                case 'Albums':
+                    this.fetchAlbums()
+                    break
+                case 'Artists':
+                    this.fetchArtists()
+                    break
+            }
+        }
+    },
+    methods: {
+        async fetchFolders() {
+            this.currentData = await fetchFolders()
+            this.dataNavigationStack = []
+            this.dataNavigationStack.push(this.currentData)
+        },
+        async fetchAlbums() {
+            this.currentData = await fetchAlbums()
+            this.dataNavigationStack = []
+            this.dataNavigationStack.push(this.currentData)
+        },
+        async fetchArtists() {
+            this.currentData = await fetchArtists()
+            this.dataNavigationStack = []
+            this.dataNavigationStack.push(this.currentData)
+        },
+        handleClick(item) {
+            switch(this.activeTab) {
+                case 'Folders':
+                    this.handleFolderClick(item)
+                    break
+                case 'Albums':
+                    this.handleAlbumClick(item)
+                    break
+                case 'Artists':
+                    this.handleArtistClick(item)
+                    break
+            }
+        },
+        handleFolderClick(item) {
+            if(item.children.length === 0) {
+                this.playTrack(item)
+                return
+            }
+            this.dataNavigationStack.push(item.children)
+            this.currentData = item.children
+        },
+        async handleAlbumClick(item) {
+            if('id' in item) {
+                this.playTrack(item)
+                return
+            }
+            this.currentData = await fetchAlbum(item.artist, item.album)
+            this.dataNavigationStack.push(this.currentData)
+            this.search = ''
+        },
+        async handleArtistClick(item) {
+            if('id' in item) {
+                this.playTrack(item)
+                return
+            }
+            this.currentData = await fetchArtist(item.artist)
+            this.dataNavigationStack.push(this.currentData)
+            this.search = ''
+        },
+        navigateUp() {
+            this.dataNavigationStack.pop()
+            this.currentData = this.dataNavigationStack[this.dataNavigationStack.length - 1]
+        },
+        encodeURIComponent,
+        handleEnd() {
+            this.handleNext()
+        },
+        handlePrevious() {
+            const selectedTrackIndex = this.currentData.findIndex(item => item.path === this.selectedTrack.path)
+            let previousTrackIndex = selectedTrackIndex - 1
+            if(previousTrackIndex > -1) {
+                this.playTrack(this.currentData[previousTrackIndex])
+            }
+        },
+        handleNext() {
+            const selectedTrackIndex = this.currentData.findIndex(item => item.path === this.selectedTrack.path)
+            let nextTrackIndex = selectedTrackIndex + 1
+            if(nextTrackIndex < this.currentData.length) {
+                this.playTrack(this.currentData[nextTrackIndex])
+            }
+        },
+        playTrack(track) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: track.title,
+                artist: track.artist,
+                album: track.album,
+                artwork: [
+                    { src: 'https://dummyimage.com/512x512', sizes: '512x512', type: 'image/png' }
+                ]
+            })
+
+            this.selectedTrack = track
+        },
+        generateAlbumTitle(item) {
+            let albumTitle = ''
+
+            if(item.artist) {
+                albumTitle += `${item.artist} - `
+            }
+
+            albumTitle += `${item.album}`
+
+            if(item.year) {
+                albumTitle += ` (${item.year})`
+            }
+
+            return albumTitle
+        },
+        generateTrackTitle(item) {
+            let trackTitle = ''
+
+            if(this.activeTab === 'Folders') {
+                trackTitle = item.name
+            }
+
+            if(this.activeTab === 'Albums') {
+                if(item.track_no) {
+                    trackTitle += `${item.track_no} - `
+                }
+
+                if(item.artist) {
+                    trackTitle += `${item.artist} - `
+                }
+
+                trackTitle += item.title
+            }
+
+            if(this.activeTab === 'Artists') {
+                if(item.artist) {
+                    trackTitle += `${item.artist} - `
+                }
+
+                trackTitle += item.title
+            }
+
+            return trackTitle
+        }
+    },
+    created() {
+        this.fetchFolders()
     }
 }
 </script>
@@ -56,11 +301,12 @@ main {
 
     display: grid;
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto auto 1fr auto auto;
     grid-template-areas:
         'search-bar'
         'tabs'
         'list'
+        'player'
         'nav-bar'
     ;
 
@@ -78,6 +324,10 @@ main > .tabs {
 
 main > .list {
   grid-area: list;
+}
+
+main > .player {
+  grid-area: player;
 }
 
 main > .nav-bar {
@@ -153,6 +403,10 @@ main > .nav-bar {
     padding-right: 1rem;
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
+}
+
+.list-item-active {
+    background-color: #ffffff17;
 }
 
 .nav-bar {

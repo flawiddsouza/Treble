@@ -2,7 +2,7 @@
     "name": "treble-ui",
     "version": "0.0.0",
     "scripts": {
-        "dev": "vite",
+        "dev": "vite --port 4000",
         "build": "vite build",
         "serve": "vite preview"
     },

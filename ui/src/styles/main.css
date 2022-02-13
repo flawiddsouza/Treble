@@ -15,6 +15,8 @@ html {
     --tab-active-background-color: #cec8ff;
     --tab-active-text-color: var(--background-color);
     --search-background-color: var(--tab-active-background-color);
+    --player-background-color: var(--search-background-color);
+    --player-text-color: black;
 }
 
 html.turqoise-dreams {
@@ -24,6 +26,8 @@ html.turqoise-dreams {
     --tab-active-background-color: #6dceab;
     --tab-active-text-color: var(--background-color);
     --search-background-color: var(--tab-active-background-color);
+    --player-background-color: var(--search-background-color);
+    --player-text-color: black;
 }
 
 html.royalty {
@@ -33,6 +37,8 @@ html.royalty {
     --tab-active-background-color: #ffbc00;
     --tab-active-text-color: var(--background-color);
     --search-background-color: var(--tab-active-background-color);
+    --player-background-color: var(--search-background-color);
+    --player-text-color: black;
 }
 
 html.dark-mode {
@@ -43,6 +49,8 @@ html.dark-mode {
     --tab-active-text-color: #ffffff;
     --search-background-color: #404040;
     --nav-item-active-background-color: #202020;
+    --player-background-color: var(--text-color);
+    --player-text-color: black;
 }
 
 body {
