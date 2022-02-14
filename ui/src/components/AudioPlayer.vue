@@ -205,7 +205,7 @@ audio::-webkit-media-controls-play-button {
     display: none;
 }
 
-audio:-webkit-media-controls-enclosure {
+audio::-webkit-media-controls-enclosure {
     border-radius: 0;
 }
 </style>
