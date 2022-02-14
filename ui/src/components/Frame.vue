@@ -45,6 +45,7 @@
         <div class="player" v-if="selectedTrack">
             <AudioPlayer
                 :src="`${API_URL}/track?path=${encodeURIComponent(selectedTrack.path)}`"
+                :cover-src="`${API_URL}/track-cover?path=${encodeURIComponent(selectedTrack.path)}`"
                 @ended="handleEnd"
                 @previous="handlePrevious"
                 @next="handleNext"
@@ -235,10 +236,10 @@ export default {
         playTrack(track) {
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: track.title,
-                artist: track.artist,
-                album: track.album,
+                artist: track.artist ?? undefined,
+                album: track.album ?? undefined,
                 artwork: [
-                    { src: 'https://dummyimage.com/512x512', sizes: '512x512', type: 'image/png' }
+                    { src: `${API_URL}/track-cover?path=${this.encodeURIComponent(track.path)}` }
                 ]
             })
 

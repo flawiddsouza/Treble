@@ -2,8 +2,10 @@ import express from 'express'
 import { authCheck } from '../helpers.js'
 import Database from 'better-sqlite3'
 import SyncMusicDb from 'sync-music-db-bs3'
-import { statSync, createReadStream } from 'fs'
+import { statSync, createReadStream, readFileSync, existsSync } from 'fs'
 import mime from 'mime'
+import * as mm from 'music-metadata'
+import path from 'path'
 
 const router = express.Router()
 
@@ -113,6 +115,30 @@ router.get('/track', async(req, res) => {
         res.writeHead(200, { 'Content-Length': total, 'Content-Type': mime.getType(trackFilePath) })
         createReadStream(trackFilePath).pipe(res)
      }
+})
+
+router.get('/track-cover', async(req, res) => {
+    const trackFilePath = process.env.MUSIC_DIRECTORY + '/' + req.query.path
+    const trackFolderPath = path.dirname(trackFilePath)
+    res.writeHead(200, {
+        'Content-Type': 'image/jpeg',
+        'Content-disposition': 'inline'
+    })
+    try {
+        const metadata = await mm.parseFile(trackFilePath)
+        if(metadata.common.picture && metadata.common.picture.length > 0) {
+            res.end(metadata.common.picture[0].data)
+        } else {
+            const possibleCoverFilePath = trackFolderPath + '/cover.png'
+            if(existsSync(possibleCoverFilePath)) {
+                res.end(readFileSync(possibleCoverFilePath))
+            } else {
+                throw new Error()
+            }
+        }
+    } catch(e) {
+        res.end()
+    }
 })
 
 router.get('/authenticated-route', authCheck, async(req, res) => {

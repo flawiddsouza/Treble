@@ -1,5 +1,8 @@
 <template>
     <div class="player-container">
+        <div class="player-cover" v-if="!coverLoadFailed">
+            <img :src="coverSrc" @error="coverLoadFailed = true">
+        </div>
         <div class="player-buttons">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" @click="$emit('previous')"><!--! Font Awesome Pro 6.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. --><path d="M31.1 64.03c-17.67 0-31.1 14.33-31.1 32v319.9c0 17.67 14.33 32 32 32C49.67 447.1 64 433.6 64 415.1V96.03C64 78.36 49.67 64.03 31.1 64.03zM267.5 71.41l-192 159.1C67.82 237.8 64 246.9 64 256c0 9.094 3.82 18.18 11.44 24.62l192 159.1c20.63 17.12 52.51 2.75 52.51-24.62v-319.9C319.1 68.66 288.1 54.28 267.5 71.41z"/></svg>
         </div>
@@ -17,11 +20,18 @@
 <script>
 export default {
     props: {
-        src: String
+        src: String,
+        coverSrc: String
     },
     data() {
         return {
-            isPlaying: false
+            isPlaying: false,
+            coverLoadFailed: false
+        }
+    },
+    watch: {
+        coverSrc() {
+            this.coverLoadFailed = false
         }
     },
     methods: {
@@ -70,6 +80,15 @@ export default {
     background-color: var(--player-background-color);
     color: var(--player-text-color);
     align-items: center;
+}
+
+.player-cover {
+    margin-left: 0.5rem;
+    margin-top: 5px;
+}
+
+.player-cover img {
+    width: 100px;
 }
 
 .player-buttons {
