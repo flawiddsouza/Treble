@@ -35,7 +35,7 @@ let albums = []
 
 router.get('/folders', async(_req, res) => {
     if(folders.length === 0) {
-        const allFilePaths = await database.prepare('SELECT * from library').all()
+        const allFilePaths = await database.prepare('SELECT * from library ORDER BY path').all()
         let result = []
         let level = { result }
 
