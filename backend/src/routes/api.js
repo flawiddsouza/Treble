@@ -129,9 +129,24 @@ router.get('/track-cover', async(req, res) => {
         if(metadata.common.picture && metadata.common.picture.length > 0) {
             res.end(metadata.common.picture[0].data)
         } else {
-            const possibleCoverFilePath = trackFolderPath + '/cover.png'
-            if(existsSync(possibleCoverFilePath)) {
-                res.end(readFileSync(possibleCoverFilePath))
+            let possibleCoverFilePaths = [
+                trackFolderPath + '/cover.png',
+                trackFolderPath + '/Cover.png',
+                trackFolderPath + '/cover.jpg',
+                trackFolderPath + '/Cover.png'
+            ]
+
+            let foundCover = null
+
+            for(const possibleCoverFilePath of possibleCoverFilePaths) {
+                if(existsSync(possibleCoverFilePath)) {
+                    foundCover = readFileSync(possibleCoverFilePath)
+                    break
+                }
+            }
+
+            if(foundCover) {
+                res.end(foundCover)
             } else {
                 throw new Error()
             }
