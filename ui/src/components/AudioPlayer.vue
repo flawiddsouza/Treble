@@ -1,25 +1,44 @@
 <template>
-    <div class="player-container">
-        <div class="player-cover" v-if="!coverLoadFailed">
-            <img :src="coverSrc" @error="coverLoadFailed = true">
+    <div class="player-container" v-if="track">
+        <div class="player-left">
+            <div class="player-cover">
+                <img :src="coverSrc" @error="coverLoadFailed = true" v-if="!coverLoadFailed">
+                <div style="width: 70px; height: 62px; background-color: white; display: grid; place-items: center;" v-else>
+                    <div style="text-align: center">
+                        <div>No</div>
+                        <div>Cover</div>
+                    </div>
+                </div>
+            </div>
+            <div class="player-track-info">
+                <div class="player-track-info-title" :title="track.title">{{ track.title }}</div>
+                <div class="player-track-info-artist" :title="track.artist">{{ track.artist }}</div>
+            </div>
         </div>
-        <div class="player-buttons">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" @click="$emit('previous')"><!--! Font Awesome Pro 6.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. --><path d="M31.1 64.03c-17.67 0-31.1 14.33-31.1 32v319.9c0 17.67 14.33 32 32 32C49.67 447.1 64 433.6 64 415.1V96.03C64 78.36 49.67 64.03 31.1 64.03zM267.5 71.41l-192 159.1C67.82 237.8 64 246.9 64 256c0 9.094 3.82 18.18 11.44 24.62l192 159.1c20.63 17.12 52.51 2.75 52.51-24.62v-319.9C319.1 68.66 288.1 54.28 267.5 71.41z"/></svg>
+        <div class="player-right">
+            <div class="player-top">
+                <div class="player-buttons">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" @click="$emit('previous')"><!--! Font Awesome Pro 6.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. --><path d="M31.1 64.03c-17.67 0-31.1 14.33-31.1 32v319.9c0 17.67 14.33 32 32 32C49.67 447.1 64 433.6 64 415.1V96.03C64 78.36 49.67 64.03 31.1 64.03zM267.5 71.41l-192 159.1C67.82 237.8 64 246.9 64 256c0 9.094 3.82 18.18 11.44 24.62l192 159.1c20.63 17.12 52.51 2.75 52.51-24.62v-319.9C319.1 68.66 288.1 54.28 267.5 71.41z"/></svg>
+                </div>
+                <div class="player-buttons margin-diff">
+                    <img src="data:image/svg+xml;base64,PHN2ZyBmaWxsPSJXaW5kb3dUZXh0IiBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik04IDV2MTRsMTEtN3oiLz4KICAgIDxwYXRoIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz4KPC9zdmc+" v-if="!isPlaying" @click="play">
+                    <img src="data:image/svg+xml;base64,PHN2ZyBmaWxsPSJXaW5kb3dUZXh0IiBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik02IDE5aDRWNUg2djE0em04LTE0djE0aDRWNWgtNHoiLz4KICAgIDxwYXRoIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz4KPC9zdmc+" v-else @click="pause">
+                </div>
+                <div class="player-buttons">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" @click="$emit('next')"><!--! Font Awesome Pro 6.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. --><path d="M287.1 447.1c17.67 0 31.1-14.33 31.1-32V96.03c0-17.67-14.33-32-32-32c-17.67 0-31.1 14.33-31.1 31.1v319.9C255.1 433.6 270.3 447.1 287.1 447.1zM52.51 440.6l192-159.1c7.625-6.436 11.43-15.53 11.43-24.62c0-9.094-3.809-18.18-11.43-24.62l-192-159.1C31.88 54.28 0 68.66 0 96.03v319.9C0 443.3 31.88 457.7 52.51 440.6z"/></svg>
+                </div>
+            </div>
+            <div class="player-bottom">
+                <audio :src="src" controls autoplay @playing="isPlaying = true" @pause="isPlaying = false" @ended="$emit('ended')" ref="audioElement"></audio>
+            </div>
         </div>
-        <div class="player-buttons margin-diff">
-            <img src="data:image/svg+xml;base64,PHN2ZyBmaWxsPSJXaW5kb3dUZXh0IiBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik04IDV2MTRsMTEtN3oiLz4KICAgIDxwYXRoIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz4KPC9zdmc+" v-if="!isPlaying" @click="play">
-            <img src="data:image/svg+xml;base64,PHN2ZyBmaWxsPSJXaW5kb3dUZXh0IiBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik02IDE5aDRWNUg2djE0em04LTE0djE0aDRWNWgtNHoiLz4KICAgIDxwYXRoIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz4KPC9zdmc+" v-else @click="pause">
-        </div>
-        <div class="player-buttons">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" @click="$emit('next')"><!--! Font Awesome Pro 6.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. --><path d="M287.1 447.1c17.67 0 31.1-14.33 31.1-32V96.03c0-17.67-14.33-32-32-32c-17.67 0-31.1 14.33-31.1 31.1v319.9C255.1 433.6 270.3 447.1 287.1 447.1zM52.51 440.6l192-159.1c7.625-6.436 11.43-15.53 11.43-24.62c0-9.094-3.809-18.18-11.43-24.62l-192-159.1C31.88 54.28 0 68.66 0 96.03v319.9C0 443.3 31.88 457.7 52.51 440.6z"/></svg>
-        </div>
-        <audio :src="src" controls autoplay @playing="isPlaying = true" @pause="isPlaying = false" @ended="$emit('ended')" ref="audioElement"></audio>
     </div>
 </template>
 
 <script>
 export default {
     props: {
+        track: Object,
         src: String,
         coverSrc: String
     },
@@ -91,7 +110,45 @@ export default {
     display: flex;
     background-color: var(--player-background-color);
     color: var(--player-text-color);
+}
+
+.player-left {
+    display: flex;
     align-items: center;
+}
+
+.player-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.player-top, .player-bottom {
+    display: flex;
+    align-items: center;
+}
+
+.player-top {
+    justify-content: center;
+    margin-top: 0.5rem;
+}
+
+.player-track-info {
+    margin-left: 0.7rem;
+    width: 7.5rem;
+    white-space: nowrap;
+}
+
+.player-track-info > .player-track-info-title {
+    font-weight: 500;
+    margin-bottom: 0.1rem;
+}
+
+.player-track-info > .player-track-info-title,
+.player-track-info > .player-track-info-artist {
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
 
 .player-cover {
@@ -100,22 +157,35 @@ export default {
 }
 
 .player-cover img {
-    width: 100px;
+    width: 70px;
 }
 
 .player-buttons {
-    margin-left: 1.2rem;
+    margin-left: 1.7rem;
     width: 10px;
     cursor: pointer;
     margin-top: 3px;
 }
 
+.player-buttons:first-child {
+    margin-left: 0;
+}
+
 .player-buttons.margin-diff {
-    margin-left: 0.4rem;
+    margin-left: 0.8rem;
+}
+
+.player-buttons > svg {
+    width: 15px;
+}
+
+.player-buttons > img {
+    width: 30px;
 }
 
 audio {
     width: 100%;
+    height: 2.5em;
     background-color: var(--player-background-color);
 }
 

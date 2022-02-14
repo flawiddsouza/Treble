@@ -44,6 +44,7 @@
         </div>
         <div class="player" v-if="selectedTrack">
             <AudioPlayer
+                :track="selectedTrack"
                 :src="`${API_URL}/track?path=${encodeURIComponent(selectedTrack.path)}`"
                 :cover-src="`${API_URL}/track-cover?path=${encodeURIComponent(selectedTrack.path)}`"
                 @ended="handleEnd"
