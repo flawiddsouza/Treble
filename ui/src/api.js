@@ -1,4 +1,4 @@
-export const API_URL = 'http://localhost:4001/api'
+export const API_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:4001'}/api`
 
 async function get(apiPath) {
     const response = await fetch(API_URL + apiPath)
