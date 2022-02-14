@@ -11,7 +11,16 @@
                 </div>
             </div>
             <div class="player-track-info">
-                <div class="player-track-info-title" :title="track.title">{{ track.title }}</div>
+                <div class="player-track-info-title" :title="track.title">
+                    <marquee-text
+                        :repeat="3"
+                        :duration="5"
+                        :key="track.path"
+                        :paused="!isPlaying"
+                    >
+                        <span style="margin-right: 1rem">{{ track.title }}</span>
+                    </marquee-text>
+                </div>
                 <div class="player-track-info-artist" :title="track.artist">{{ track.artist }}</div>
             </div>
         </div>
@@ -36,7 +45,12 @@
 </template>
 
 <script>
+import MarqueeText from 'vue-marquee-text-component'
+
 export default {
+    components: {
+        MarqueeText
+    },
     props: {
         track: Object,
         src: String,
@@ -132,6 +146,7 @@ export default {
 .player-top {
     justify-content: center;
     margin-top: 0.5rem;
+    height: 1.9rem;
 }
 
 .player-track-info {
