@@ -70,6 +70,18 @@ export default {
         this.$refs.audioElement.addEventListener('ratechange', () => {
             this.updateSeekPositionStateToMediaSession()
         })
+
+        const volumeLocalStorageKey = 'Treble-Volume'
+
+        const savedVolume = localStorage.getItem(volumeLocalStorageKey)
+
+        if(savedVolume) {
+            this.$refs.audioElement.volume = savedVolume
+        }
+
+        this.$refs.audioElement.addEventListener('volumechange', () => {
+            localStorage.setItem(volumeLocalStorageKey, this.$refs.audioElement.volume)
+        })
     }
 }
 </script>
