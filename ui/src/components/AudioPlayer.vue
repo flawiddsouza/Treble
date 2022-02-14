@@ -83,26 +83,28 @@ export default {
         }
     },
     mounted() {
-        navigator.mediaSession.setActionHandler('previoustrack', () => {
-            this.$emit('previous')
-        })
+        if('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('previoustrack', () => {
+                this.$emit('previous')
+            })
 
-        navigator.mediaSession.setActionHandler('nexttrack', () => {
-            this.$emit('next')
-        })
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                this.$emit('next')
+            })
 
-        navigator.mediaSession.setActionHandler('seekto', details => {
-            if(details.fastSeek && 'fastSeek' in this.$refs.audioElement) {
-                this.$refs.audioElement.fastSeek(details.seekTime)
-                return
-            }
-            this.$refs.audioElement.currentTime = details.seekTime
-            this.updateSeekPositionStateToMediaSession()
-        })
+            navigator.mediaSession.setActionHandler('seekto', details => {
+                if(details.fastSeek && 'fastSeek' in this.$refs.audioElement) {
+                    this.$refs.audioElement.fastSeek(details.seekTime)
+                    return
+                }
+                this.$refs.audioElement.currentTime = details.seekTime
+                this.updateSeekPositionStateToMediaSession()
+            })
 
-        this.$refs.audioElement.addEventListener('ratechange', () => {
-            this.updateSeekPositionStateToMediaSession()
-        })
+            this.$refs.audioElement.addEventListener('ratechange', () => {
+                this.updateSeekPositionStateToMediaSession()
+            })
+        }
 
         const volumeLocalStorageKey = 'Treble-Volume'
 

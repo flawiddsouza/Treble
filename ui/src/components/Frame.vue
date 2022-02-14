@@ -235,14 +235,16 @@ export default {
             }
         },
         playTrack(track) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: track.title,
-                artist: track.artist ?? undefined,
-                album: track.album ?? undefined,
-                artwork: [
-                    { src: `${API_URL}/track-cover?path=${this.encodeURIComponent(track.path)}` }
-                ]
-            })
+            if('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: track.title,
+                    artist: track.artist ?? undefined,
+                    album: track.album ?? undefined,
+                    artwork: [
+                        { src: `${API_URL}/track-cover?path=${this.encodeURIComponent(track.path)}` }
+                    ]
+                })
+            }
 
             this.selectedTrack = track
         },
