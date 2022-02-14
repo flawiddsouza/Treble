@@ -40,7 +40,7 @@ router.get('/folders', async(_req, res) => {
         let level = { result }
 
         allFilePaths.forEach(filePath => {
-            filePath.path.replace(process.env.MUSIC_DIRECTORY, '').split('/').reduce((r, name) => {
+            filePath.path.replace(process.env.MUSIC_DIRECTORY, '').split(process.platform === 'win32' ? '\\' : '/').reduce((r, name) => {
                 if(!r[name]) {
                     r[name] = { result: [] }
                     r.result.push({
