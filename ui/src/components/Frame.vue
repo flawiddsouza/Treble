@@ -47,6 +47,10 @@
                 :track="selectedTrack"
                 :src="`${API_URL}/track?path=${encodeURIComponent(selectedTrack.path)}`"
                 :cover-src="`${API_URL}/track-cover?path=${encodeURIComponent(selectedTrack.path)}`"
+                :shuffle="shuffle"
+                :repeat="repeat"
+                @shuffle="shuffle = $event"
+                @repeat="repeat = $event"
                 @ended="handleEnd"
                 @previous="handlePrevious"
                 @next="handleNext"
@@ -64,6 +68,28 @@
 <script>
 import AudioPlayer from '@/components/AudioPlayer.vue'
 import { API_URL, fetchFolders, fetchAlbums, fetchArtists, fetchAlbum, fetchArtist } from '@/api'
+import { nextTick } from 'vue'
+import { shuffleLocalStorageKey, repeatLocalStorageKey } from '@/constants'
+
+// From: https://stackoverflow.com/a/2450976/4932305
+function shuffle(array) {
+  let currentIndex = array.length, randomIndex
+
+  // While there remain elements to shuffle...
+  while(currentIndex !== 0) {
+
+    // Pick a remaining element...
+    randomIndex = Math.floor(Math.random() * currentIndex)
+    currentIndex--
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]
+    ]
+  }
+
+  return array
+}
 
 export default {
     components: {
@@ -91,7 +117,9 @@ export default {
             currentData: null,
             dataNavigationStack: [],
             selectedTrack: null,
-            search: ''
+            search: '',
+            shuffle: false,
+            repeat: 'none'
         }
     },
     computed: {
@@ -155,6 +183,12 @@ export default {
                     this.fetchArtists()
                     break
             }
+        },
+        shuffle() {
+            localStorage.setItem(shuffleLocalStorageKey, this.shuffle)
+        },
+        repeat() {
+            localStorage.setItem(repeatLocalStorageKey, this.repeat)
         }
     },
     methods: {
@@ -193,6 +227,7 @@ export default {
             }
             this.dataNavigationStack.push(item.children)
             this.currentData = item.children
+            this.search = ''
         },
         async handleAlbumClick(item) {
             if('id' in item) {
@@ -218,6 +253,14 @@ export default {
         },
         encodeURIComponent,
         handleEnd() {
+            if(this.repeat === 'one') {
+                let selectedTrackCopy = this.selectedTrack
+                this.selectedTrack = null
+                nextTick(() => {
+                    this.playTrack(selectedTrackCopy)
+                })
+                return
+            }
             this.handleNext()
         },
         handlePrevious() {
@@ -229,9 +272,26 @@ export default {
         },
         handleNext() {
             const selectedTrackIndex = this.currentData.findIndex(item => item.path === this.selectedTrack.path)
+
+            if(this.shuffle) {
+                let currentData = JSON.parse(JSON.stringify(this.currentData))
+                shuffle(currentData)
+                let shuffleSelectedTrack = currentData[0]
+                while(shuffleSelectedTrack.path === this.selectedTrack.path) {
+                    shuffle(currentData)
+                    shuffleSelectedTrack = currentData[0]
+                }
+                this.playTrack(shuffleSelectedTrack)
+                return
+            }
+
             let nextTrackIndex = selectedTrackIndex + 1
             if(nextTrackIndex < this.currentData.length) {
                 this.playTrack(this.currentData[nextTrackIndex])
+            } else {
+                if(this.repeat === 'all') {
+                    this.playTrack(this.currentData[0])
+                }
             }
         },
         playTrack(track) {
@@ -295,6 +355,17 @@ export default {
     },
     created() {
         this.fetchFolders()
+
+        const saveShuffle = localStorage.getItem(shuffleLocalStorageKey)
+        const savedRepeat = localStorage.getItem(repeatLocalStorageKey)
+
+        if(saveShuffle) {
+            this.shuffle = saveShuffle === 'true' ? true : false
+        }
+
+        if(savedRepeat) {
+            this.repeat = savedRepeat
+        }
     }
 }
 </script>
