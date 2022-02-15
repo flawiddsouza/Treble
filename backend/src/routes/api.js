@@ -39,7 +39,12 @@ router.get('/folders', async(_req, res) => {
         let result = []
         let level = { result }
 
-        allFilePaths.forEach(filePath => {
+        allFilePaths.sort(function(a, b) {
+            return a.path.localeCompare(b.path, undefined, {
+                numeric: true,
+                sensitivity: 'base'
+            })
+          }).forEach(filePath => {
             filePath.path.replace(process.env.MUSIC_DIRECTORY, '').split(process.platform === 'win32' ? '\\' : '/').reduce((r, name) => {
                 if(!r[name]) {
                     r[name] = { result: [] }
