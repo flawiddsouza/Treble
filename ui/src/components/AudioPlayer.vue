@@ -99,6 +99,10 @@
                             <path d="M21 13v1a4 4 0 01-4 4H3" />
                         </svg>
                     </div>
+                    <div style="margin-left: 2rem">Volume</div>
+                    <div class="volume-bar">
+                        <div class="volume-bar-fill" ref="volumebar"></div>
+                    </div>
                 </div>
                 <div class="player-bottom">
                     <audio :src="src" autoplay @playing="isPlaying = true" @pause="isPlaying = false" @ended="$emit('ended')" ref="audioElement"></audio>
@@ -180,6 +184,14 @@ export default {
     },
     mounted() {
         if('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', () => {
+                this.play()
+            })
+
+            navigator.mediaSession.setActionHandler('pause', () => {
+                this.pause()
+            })
+
             navigator.mediaSession.setActionHandler('previoustrack', () => {
                 this.$emit('previous')
             })
@@ -220,10 +232,24 @@ export default {
             this.$refs.audioElement.currentTime = seekTime
         })
 
+        this.$refs.volumebar.parentElement.addEventListener('click', e => {
+            const rect = this.$refs.volumebar.parentElement.getBoundingClientRect()
+            const x = e.clientX - rect.left
+            const percentage = ((x * 100) / this.$refs.volumebar.parentElement.clientWidth)
+            this.$refs.volumebar.style.width = percentage + '%'
+            const maxVolume = 1
+            const newVolume = (maxVolume * percentage) / 100
+            this.$refs.audioElement.volume = newVolume
+        })
+
         const savedVolume = localStorage.getItem(volumeLocalStorageKey)
 
         if(savedVolume) {
             this.$refs.audioElement.volume = savedVolume
+            const maxVolume = 1
+            this.$refs.volumebar.style.width = ((savedVolume * 100) / maxVolume) + '%'
+        } else {
+            this.$refs.volumebar.style.width = '100%'
         }
 
         this.$refs.audioElement.addEventListener('volumechange', () => {
@@ -334,6 +360,22 @@ export default {
 }
 
 .seekbar-fill {
+    height: 100%;
+    width: 0;
+    background-color: black;
+    border-radius: 5px;
+}
+
+.volume-bar {
+    width: 4rem;
+    background-color: rgba(0, 0, 0, 0.397);
+    height: 0.3rem;
+    margin-left: 0.35rem;
+    margin-right: 0.35rem;
+    border-radius: 5px;
+}
+
+.volume-bar-fill {
     height: 100%;
     width: 0;
     background-color: black;
