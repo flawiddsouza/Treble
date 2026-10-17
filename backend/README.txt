@@ -11,8 +11,10 @@ Requires Node 22.12 or newer. Run commands from backend.
 Development restart-on-change:
    npm run dev
 
-The music library initializes and watches for changes at startup. Existing music.db
-records keep their IDs while metadata columns are added and tags are refreshed.
+The UI and API start using the cached library while the music folder is scanned
+and its watcher initializes in the background. The UI updates when indexing finishes.
+Cached library data stays available if the music folder is temporarily unreachable.
+Existing music.db records keep their IDs while metadata columns are added and tags are refreshed.
 Rescan music folder in the empty-library view waits for a scan to finish.
 Audio files are never modified.
 The music index is stored in MUSIC_DB_PATH. No database server is required.

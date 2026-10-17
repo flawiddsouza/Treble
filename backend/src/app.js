@@ -25,9 +25,10 @@ export function createApp({ library, corsOrigins } = {}) {
 
 export async function startServer(config = getConfig()) {
     const library = new MusicLibrary(config)
+    const libraryReady = library.start()
+    libraryReady.catch(error => library.onError(error))
     let server
     try {
-        await library.start()
         const app = createApp({ library, corsOrigins: config.corsOrigins })
         server = config.host ? app.listen(config.port, config.host) : app.listen(config.port)
         await new Promise((resolve, reject) => {
@@ -43,10 +44,13 @@ export async function startServer(config = getConfig()) {
     }
     let closing
     const close = () => closing ??= (async () => {
-        await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
-        await library.close()
+        const serverClosed = new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+        await Promise.all([
+            serverClosed,
+            library.close(serverClosed)
+        ])
     })()
-    return { server, library, close }
+    return { server, library, libraryReady, close }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

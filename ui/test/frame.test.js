@@ -6,7 +6,7 @@ import * as api from '../src/api.js'
 
 vi.mock('../src/api.js', () => ({
     API_URL: '/api', fetchFolders: vi.fn(), fetchAlbums: vi.fn(), fetchArtists: vi.fn(),
-    fetchAlbum: vi.fn(), fetchArtist: vi.fn(), refreshLibrary: vi.fn(),
+    fetchAlbum: vi.fn(), fetchArtist: vi.fn(), fetchIndexStatus: vi.fn(), refreshLibrary: vi.fn(),
     trackUrl: (track, cover = false) => `/api/${cover ? 'track-cover' : 'track'}?id=${track.id}`
 }))
 
@@ -62,13 +62,234 @@ beforeEach(() => {
     api.fetchAlbum.mockResolvedValue([one, two])
     api.fetchArtist.mockResolvedValue([one, two])
     api.refreshLibrary.mockResolvedValue({ indexed: 2 })
+    api.fetchIndexStatus.mockResolvedValue({ syncing: false, error: null })
 })
 afterEach(() => {
     for (const wrapper of wrappers.splice(0)) if (wrapper.exists()) wrapper.unmount()
     document.documentElement.removeAttribute('data-theme')
     vi.restoreAllMocks()
+    vi.useRealTimers()
     if (originalScrollTo) Object.defineProperty(HTMLElement.prototype, 'scrollTo', originalScrollTo)
     else delete HTMLElement.prototype.scrollTo
+})
+
+describe('startup indexing', () => {
+    it('loads cached music without waiting for the first index status response', async () => {
+        const status = deferred()
+        api.fetchIndexStatus.mockReturnValueOnce(status.promise)
+        const wrapper = render()
+        await flushPromises()
+        expect(items(wrapper)).toEqual(['Folder'])
+        status.resolve({ syncing: false, error: null })
+        await flushPromises()
+    })
+
+    it('keeps a restored album route when its empty response arrives before startup status', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        const status = deferred()
+        api.fetchIndexStatus.mockReturnValueOnce(status.promise)
+        api.fetchAlbums.mockResolvedValueOnce([])
+        const route = [{ artist: album.album_artist, album: album.album }]
+        sessionStorage.setItem('Treble-Resume:/api', JSON.stringify({ views: { Albums: { route, scroll: 29 } } }))
+        const wrapper = render()
+        await button(wrapper, 'Albums').trigger('click')
+        await flushPromises()
+        expect(wrapper.vm.views.Albums.route).toEqual(route)
+        status.resolve({ syncing: true, error: null })
+        await flushPromises()
+        await vi.advanceTimersByTimeAsync(2000)
+        await flushPromises()
+        expect(wrapper.vm.views.Albums.route).toEqual(route)
+        expect(items(wrapper)).toEqual(['Artist - One', 'Artist - Two'])
+    })
+
+    it('ignores pre-scan empty album responses after the completion reload starts', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+        const initialAlbums = deferred(), updatedFolders = deferred()
+        api.fetchAlbums.mockReturnValueOnce(initialAlbums.promise)
+        const route = [{ artist: album.album_artist, album: album.album }]
+        sessionStorage.setItem('Treble-Resume:/api', JSON.stringify({ activeTab: 'Albums', views: { Albums: { route } } }))
+        const wrapper = render()
+        await flushPromises()
+        api.fetchFolders.mockReturnValueOnce(updatedFolders.promise)
+        await vi.advanceTimersByTimeAsync(2000)
+        initialAlbums.resolve([])
+        await flushPromises()
+        updatedFolders.resolve([folder])
+        await flushPromises()
+        expect(wrapper.vm.views.Albums.route).toEqual(route)
+        expect(items(wrapper)).toEqual(['Artist - One', 'Artist - Two'])
+    })
+
+    it('keeps cached tabs interactive when switching during the completion reload', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+        const wrapper = render()
+        await flushPromises()
+        await button(wrapper, 'Albums').trigger('click')
+        await flushPromises()
+        await button(wrapper, 'Folders').trigger('click')
+        await flushPromises()
+        const updatedFolders = deferred(), updatedAlbums = deferred()
+        api.fetchFolders.mockReturnValueOnce(updatedFolders.promise)
+        api.fetchAlbums.mockReturnValueOnce(updatedAlbums.promise)
+        await vi.advanceTimersByTimeAsync(2000)
+        await button(wrapper, 'Albums').trigger('click')
+        expect(items(wrapper)).toEqual(['Various artists - Album (2020)'])
+        expect(wrapper.text()).not.toContain('Loading library...')
+        updatedAlbums.resolve([album])
+        updatedFolders.resolve([folder])
+        await flushPromises()
+    })
+
+    it('keeps the initial empty library loading until the post-scan snapshot arrives', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+        const updated = deferred()
+        api.fetchFolders.mockResolvedValueOnce([]).mockReturnValueOnce(updated.promise)
+        sessionStorage.setItem('Treble-Resume:/api', JSON.stringify({
+            views: { Folders: { route: [{ path: 'Folder', name: 'Folder' }], scroll: 71 } }
+        }))
+        const wrapper = render()
+        await flushPromises()
+        await vi.advanceTimersByTimeAsync(2000)
+        expect(wrapper.text()).toContain('Loading library...')
+        expect(wrapper.text()).not.toContain('No music here.')
+        wrapper.get('.list').element.scrollTop = 0
+        await wrapper.get('.list').trigger('scroll')
+        expect(wrapper.vm.views.Folders.scroll).toBe(71)
+        updated.resolve([folder])
+        await flushPromises()
+        expect(items(wrapper)).toEqual(['One.mp3', 'Two.mp3'])
+        expect(wrapper.get('.list').element.scrollTop).toBe(71)
+    })
+
+    it('preserves the focused cached row and current playback through cloned scan results', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+        const wrapper = render()
+        await flushPromises()
+        await button(wrapper, 'Folder').trigger('click')
+        const selected = button(wrapper, 'One.mp3')
+        selected.element.focus()
+        await selected.trigger('click')
+        wrapper.getComponent(AudioPlayer).vm.$emit('position', 23)
+        api.fetchFolders.mockResolvedValueOnce([{ ...folder, children: [{ ...one, id: 91 }, { ...two, id: 92 }] }])
+        await vi.advanceTimersByTimeAsync(2000)
+        await flushPromises()
+        expect(document.activeElement).toBe(selected.element)
+        expect(wrapper.vm.selectedTrack.path).toBe(one.path)
+        expect(wrapper.vm.queue.map(item => item.path)).toEqual([one.path, two.path])
+        expect(wrapper.vm.playbackPosition).toBe(23)
+        expect(wrapper.vm.autoplay).toBe(true)
+    })
+
+    it.each([false, true])('keeps an empty initial index pending and restores the saved folder and paused playback with search=%s', async searching => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+        api.fetchFolders.mockResolvedValueOnce([]).mockResolvedValueOnce([folder])
+        sessionStorage.setItem('Treble-Resume:/api', JSON.stringify({
+            search: searching ? 'Artist' : '', searchScroll: 19,
+            views: { Folders: { route: [{ path: 'Folder', name: 'Folder' }], scroll: 71 } },
+            playback: { paths: [one.path, two.path], order: [one.path, two.path], selectedPath: one.path, position: 23 }
+        }))
+        const wrapper = render()
+        await flushPromises()
+        expect(wrapper.text()).toContain('Indexing music...')
+        expect(wrapper.text()).not.toContain('No music here.')
+        expect(button(wrapper, 'Rescan music folder')).toBeUndefined()
+        wrapper.get('.list').element.scrollTop = 0
+        await wrapper.get('.list').trigger('scroll')
+        const pending = JSON.parse(sessionStorage.getItem('Treble-Resume:/api'))
+        expect(pending.views.Folders.route).toEqual([{ path: 'Folder', name: 'Folder' }])
+        expect(pending.views.Folders.scroll).toBe(71)
+        expect(pending.searchScroll).toBe(19)
+        expect(pending.playback.selectedPath).toBe(one.path)
+        expect(pending.playback.position).toBe(23)
+        await vi.advanceTimersByTimeAsync(2000)
+        await flushPromises()
+        expect(items(wrapper)).toEqual(searching ? ['One', 'Two'] : ['One.mp3', 'Two.mp3'])
+        expect(wrapper.text()).not.toContain('Indexing music...')
+        expect(wrapper.get('.list').element.scrollTop).toBe(searching ? 19 : 71)
+        expect(wrapper.getComponent(AudioPlayer).props('track').path).toBe(one.path)
+        expect(wrapper.getComponent(AudioPlayer).props('initialPosition')).toBe(23)
+        expect(wrapper.getComponent(AudioPlayer).props('autoplay')).toBe(false)
+        await vi.advanceTimersByTimeAsync(10000)
+        expect(api.fetchIndexStatus).toHaveBeenCalledTimes(2)
+    })
+
+    it('refreshes the visible album after scanning without changing its route or scroll', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+        sessionStorage.setItem('Treble-Resume:/api', JSON.stringify({
+            activeTab: 'Albums', views: { Albums: { route: [{ artist: album.album_artist, album: album.album }], scroll: 29 } }
+        }))
+        const wrapper = render()
+        await flushPromises()
+        expect(items(wrapper)).toEqual(['Artist - One', 'Artist - Two'])
+        api.fetchAlbum.mockResolvedValueOnce([two])
+        await vi.advanceTimersByTimeAsync(2000)
+        await flushPromises()
+        expect(items(wrapper)).toEqual(['Artist - Two'])
+        expect(wrapper.vm.activeTab).toBe('Albums')
+        expect(wrapper.vm.activeView.route).toEqual([{ artist: album.album_artist, album: album.album }])
+        expect(wrapper.get('.list').element.scrollTop).toBe(29)
+        expect(api.fetchAlbum).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps cached search and its captured queue usable while scanning and refreshes results without changing context', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+        const wrapper = render()
+        await flushPromises()
+        await button(wrapper, 'Folder').trigger('click')
+        await button(wrapper, 'One.mp3').trigger('click')
+        wrapper.getComponent(AudioPlayer).vm.$emit('position', 23)
+        wrapper.get('.list').element.scrollTop = 71
+        await wrapper.get('.list').trigger('scroll')
+        await wrapper.get('input[type="search"]').setValue('Artist')
+        await flushPromises()
+        wrapper.get('.list').element.scrollTop = 19
+        await wrapper.get('.list').trigger('scroll')
+        const three = track(3, 'Three')
+        api.fetchFolders.mockResolvedValueOnce([{ ...folder, children: [one, two, three] }])
+        await vi.advanceTimersByTimeAsync(2000)
+        await flushPromises()
+        expect(wrapper.vm.search).toBe('Artist')
+        expect(items(wrapper)).toEqual(['One', 'Three', 'Two'])
+        expect(wrapper.get('.list').element.scrollTop).toBe(19)
+        expect(wrapper.vm.queue.map(item => item.path)).toEqual([one.path, two.path])
+        expect(wrapper.vm.selectedTrack.path).toBe(one.path)
+        expect(wrapper.vm.playbackPosition).toBe(23)
+        await wrapper.get('input[type="search"]').setValue('')
+        expect(wrapper.vm.activeView.route).toEqual([{ path: 'Folder', name: 'Folder' }])
+        expect(wrapper.get('.list').element.scrollTop).toBe(71)
+    })
+
+    it('shows scan failure beside cached music, reuses refresh retry and stops polling on unmount', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+            .mockResolvedValueOnce({ syncing: false, error: 'Music directory unavailable.' })
+        const wrapper = render()
+        await flushPromises()
+        expect(items(wrapper)).toEqual(['Folder'])
+        await vi.advanceTimersByTimeAsync(2000)
+        await flushPromises()
+        expect(wrapper.get('[role="alert"]').text()).toContain('Music directory unavailable.')
+        expect(items(wrapper)).toEqual(['Folder'])
+        await button(wrapper, 'Try refresh again').trigger('click')
+        await flushPromises()
+        expect(api.refreshLibrary).toHaveBeenCalledOnce()
+        expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+        expect(wrapper.text()).toContain('Library refreshed.')
+        api.fetchIndexStatus.mockResolvedValueOnce({ syncing: true, error: null })
+        await wrapper.vm.checkIndexStatus()
+        const calls = api.fetchIndexStatus.mock.calls.length
+        wrapper.unmount()
+        await vi.advanceTimersByTimeAsync(10000)
+        expect(api.fetchIndexStatus).toHaveBeenCalledTimes(calls)
+    })
 })
 
 describe('library browsing', () => {

@@ -36,6 +36,7 @@ export const fetchAlbums = () => request('/albums')
 export const fetchArtists = () => request('/artists')
 export const fetchAlbum = (artist, album) => request(`/album${query({ artist, album })}`)
 export const fetchArtist = artist => request(`/artist${query({ artist })}`)
+export const fetchIndexStatus = () => request('/index')
 export const refreshLibrary = () => request('/index', { method: 'POST' })
 
 export function trackUrl(track, cover = false) {

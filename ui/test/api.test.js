@@ -46,6 +46,8 @@ describe('music API requests', () => {
         expect(fetch).toHaveBeenLastCalledWith('/api/album?artist=A+%26+B&album=Album', undefined)
         await api.fetchArtist(null)
         expect(fetch).toHaveBeenLastCalledWith('/api/artist', undefined)
+        await api.fetchIndexStatus()
+        expect(fetch).toHaveBeenLastCalledWith('/api/index', undefined)
         await api.refreshLibrary()
         expect(fetch).toHaveBeenLastCalledWith('/api/index', { method: 'POST' })
     })

@@ -22,7 +22,7 @@ function httpError(status, message) {
 export class MusicLibrary {
     constructor({ musicDirectory, databasePath = ':memory:', onError = console.error }) {
         this.musicDirectory = path.resolve(musicDirectory)
-        this.musicDirectoryReal = this.musicDirectory
+        this.musicDirectoryReal = null
         this.onError = onError
         this.database = new Database(databasePath)
         this.databasePath = databasePath === ':memory:' ? null : path.resolve(databasePath)
@@ -53,39 +53,68 @@ export class MusicLibrary {
         `)
     }
 
-    async start() {
-        this.musicDirectoryReal = await realpath(this.musicDirectory)
-        if (!(await stat(this.musicDirectory)).isDirectory()) throw new Error('MUSIC_DIRECTORY must be a directory')
-        this.watcher = chokidar.watch(this.musicDirectoryReal, {
-            ignoreInitial: true,
-            followSymlinks: false,
-            // Windows network shares may not support native watch events.
-            usePolling: process.platform === 'win32' && this.musicDirectoryReal.startsWith('\\\\'),
-            interval: 30000,
-            binaryInterval: 30000,
-            // Wait for a file copy to settle before parsing its tags.
-            awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }
+    start() {
+        if (this.closed) return Promise.reject(new Error('Music library is closed'))
+        if (this.startPromise) return this.startPromise
+        this.status = { ...this.status, syncing: true, lastAttempt: new Date().toISOString(), error: null }
+        this.startPromise = (async () => {
+            this.musicDirectoryReal = await realpath(this.musicDirectory)
+            if (this.closed) return this.status
+            if (!(await stat(this.musicDirectory)).isDirectory()) throw new Error('MUSIC_DIRECTORY must be a directory')
+            if (this.closed) return this.status
+            this.watcher = chokidar.watch(this.musicDirectoryReal, {
+                ignoreInitial: true,
+                followSymlinks: false,
+                // Windows network shares may not support native watch events.
+                usePolling: process.platform === 'win32' && this.musicDirectoryReal.startsWith('\\\\'),
+                interval: 30000,
+                binaryInterval: 30000,
+                // Wait for a file copy to settle before parsing its tags.
+                awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }
+            })
+            this.watcher.on('all', (event, filePath) => {
+                if (this.closed) return
+                if (this.databasePath && (path.resolve(filePath) === this.databasePath || path.resolve(filePath).startsWith(`${this.databasePath}-`))) return
+                if (!event.endsWith('Dir') && !extensions.has(path.extname(filePath).toLowerCase())) return
+                this.refreshAgain = true
+                clearTimeout(this.refreshTimer)
+                this.refreshTimer = setTimeout(() => this.refresh().catch(this.onError), 100)
+            })
+            this.watcher.on('error', error => { if (this.initialized) this.onError(error) })
+            console.log('Initializing music folder watcher...')
+            await new Promise((resolve, reject) => {
+                const finish = error => {
+                    this.watcher.off('ready', ready)
+                    this.watcher.off('error', failed)
+                    this.cancelInitialization = null
+                    if (error) reject(error)
+                    else resolve()
+                }
+                const ready = () => finish()
+                const failed = error => finish(error)
+                this.cancelInitialization = ready
+                this.watcher.once('ready', ready)
+                this.watcher.once('error', failed)
+            })
+            if (this.closed) return this.status
+            this.initialized = true
+            console.log('Scanning music library...')
+            return await this.refresh()
+        })().catch(async error => {
+            this.status = { ...this.status, syncing: false, error: error.message }
+            this.initialized = false
+            await this.watcher?.close()
+            this.watcher = null
+            throw error
+        }).finally(() => {
+            if (!this.initialized) this.startPromise = null
         })
-        this.watcher.on('all', (event, filePath) => {
-            if (this.closed) return
-            if (this.databasePath && (path.resolve(filePath) === this.databasePath || path.resolve(filePath).startsWith(`${this.databasePath}-`))) return
-            if (!event.endsWith('Dir') && !extensions.has(path.extname(filePath).toLowerCase())) return
-            this.refreshAgain = true
-            clearTimeout(this.refreshTimer)
-            this.refreshTimer = setTimeout(() => this.refresh().catch(this.onError), 100)
-        })
-        this.watcher.on('error', error => this.onError(error))
-        console.log('Initializing music folder watcher...')
-        await new Promise((resolve, reject) => {
-            this.watcher.once('ready', resolve)
-            this.watcher.once('error', reject)
-        })
-        console.log('Scanning music library...')
-        await this.refresh()
+        return this.startPromise
     }
 
     refresh() {
         if (this.closed) return Promise.reject(new Error('Music library is closed'))
+        if (!this.initialized) return this.start()
         if (this.refreshPromise) return this.refreshPromise
         this.refreshPromise = (async () => {
             do {
@@ -98,15 +127,18 @@ export class MusicLibrary {
     }
 
     async scan() {
+        if (this.closed) return this.status
         this.status = { ...this.status, syncing: true, lastAttempt: new Date().toISOString(), error: null }
         try {
             const files = new Map()
             const visited = new Set()
             const walk = async directory => {
+                if (this.closed) return
                 const directoryReal = await realpath(directory)
                 if (!isInside(this.musicDirectoryReal, directoryReal) || visited.has(directoryReal)) return
                 visited.add(directoryReal)
                 for (const entry of await readdir(directory, { withFileTypes: true })) {
+                    if (this.closed) return
                     const filePath = path.join(directory, entry.name)
                     let fileStat
                     try {
@@ -123,12 +155,14 @@ export class MusicLibrary {
                 }
             }
             await walk(this.musicDirectory)
+            if (this.closed) return this.status
             const existing = this.database.prepare('SELECT path, mtime, metadata_version, duration FROM library').all()
             const existingByPath = new Map(existing.map(track => [trackPathKey(track.path), track]))
             for (const track of existing) if (files.has(track.path)) existingByPath.set(trackPathKey(track.path), track)
             const pathUpdates = []
             const updates = []
             for (const [filePath, mtime] of files) {
+                if (this.closed) return this.status
                 const previous = existingByPath.get(trackPathKey(filePath))
                 if (previous && previous.path !== filePath) pathUpdates.push({ path: previous.path, pathResolved: filePath })
                 if (previous?.mtime === mtime && previous.metadata_version === 1) continue
@@ -155,6 +189,7 @@ export class MusicLibrary {
                     codec: format.codec || null, container: format.container || null
                 })
             }
+            if (this.closed) return this.status
             const remove = this.database.prepare('DELETE FROM library WHERE path = ?')
             const updatePath = this.database.prepare('UPDATE library SET path = ? WHERE path = ?')
             this.database.transaction(() => {
@@ -234,7 +269,8 @@ export class MusicLibrary {
         }
         if (!track) throw httpError(404, 'Track not found')
         const trackPath = await realpath(track.path)
-        if (!isInside(this.musicDirectoryReal, trackPath)) throw httpError(403, 'Track is outside the music directory')
+        const musicDirectoryReal = this.musicDirectoryReal ?? await realpath(this.musicDirectory)
+        if (!isInside(musicDirectoryReal, trackPath)) throw httpError(403, 'Track is outside the music directory')
         if (!(await stat(trackPath)).isFile()) throw httpError(404, 'Track not found')
         return trackPath
     }
@@ -255,15 +291,22 @@ export class MusicLibrary {
         const coverName = (await readdir(directory)).sort(compareNames).find(name => /^cover\.(png|jpe?g|webp)$/i.test(name))
         if (!coverName) throw httpError(404, 'Cover not found')
         const coverPath = await realpath(path.join(directory, coverName))
-        if (!isInside(this.musicDirectoryReal, coverPath)) throw httpError(403, 'Cover is outside the music directory')
+        const musicDirectoryReal = this.musicDirectoryReal ?? await realpath(this.musicDirectory)
+        if (!isInside(musicDirectoryReal, coverPath)) throw httpError(403, 'Cover is outside the music directory')
         return { path: coverPath }
     }
 
-    async close() {
+    async close(requestsFinished) {
         this.closed = true
+        this.status = { ...this.status, syncing: false }
         clearTimeout(this.refreshTimer)
+        this.cancelInitialization?.()
         await this.watcher?.close()
         await this.refreshPromise?.catch(() => {})
-        if (this.database.open) this.database.close()
+        try {
+            await requestsFinished
+        } finally {
+            if (this.database.open) this.database.close()
+        }
     }
 }

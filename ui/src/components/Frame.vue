@@ -14,6 +14,7 @@
                 <button type="button" @click="refresh">Try refresh again</button>
             </div>
             <p v-if="refreshMessage" class="status" role="status">{{ refreshMessage }}</p>
+            <p v-if="indexSyncing" class="status" role="status">Indexing music...</p>
             <button class="list-item back-button" type="button" v-if="!isSearching && activeView.route.length" @click="navigateUp">
                 <i class="fas fa-arrow-left" aria-hidden="true"></i><span>Go back</span>
             </button>
@@ -22,7 +23,7 @@
                 <button type="button" @click="loadTab(isSearching ? 'Folders' : activeTab, true)">Try again</button>
             </div>
             <p v-if="displayView.loading" class="status" role="status">Loading library...</p>
-            <div v-else-if="!displayView.error && computedData.length === 0" class="status empty-state">
+            <div v-else-if="!displayView.error && !refreshError && !indexSyncing && computedData.length === 0" class="status empty-state">
                 <p>{{ isSearching ? 'No matches.' : 'No music here.' }}</p>
                 <button v-if="!isSearching && !activeView.route.length && !refreshError" class="rescan-button" type="button" @click="refresh" :disabled="refreshing">
                     {{ refreshing ? 'Rescanning...' : 'Rescan music folder' }}
@@ -65,7 +66,7 @@ import AudioPlayer from '@/components/AudioPlayer.vue'
 import Settings from '@/components/Settings.vue'
 import LibraryList from '@/components/LibraryList.vue'
 import ItemContextMenu from '@/components/ItemContextMenu.vue'
-import { API_URL, fetchFolders, fetchAlbums, fetchArtists, fetchAlbum, fetchArtist, refreshLibrary, trackUrl } from '@/api'
+import { API_URL, fetchFolders, fetchAlbums, fetchArtists, fetchAlbum, fetchArtist, fetchIndexStatus, refreshLibrary, trackUrl } from '@/api'
 import { markRaw, nextTick } from 'vue'
 import { shuffleLocalStorageKey, repeatLocalStorageKey } from '@/constants'
 import { isTrack, flattenTracks, playbackOrder, adjacentTrackPath } from '@/playback'
@@ -110,7 +111,8 @@ export default {
             repeat: ['none', 'one', 'all'].includes(readStorage('localStorage', repeatLocalStorageKey))
                 ? readStorage('localStorage', repeatLocalStorageKey) : 'none',
             savedPlayback: saved.playback, resumeRestored: false,
-            refreshing: false, refreshError: '', refreshMessage: '', disposed: false
+            refreshing: false, refreshError: '', refreshMessage: '', disposed: false,
+            indexSyncing: false, indexTimer: null, indexRequest: 0, initialIndexStatus: null
         }
     },
     computed: {
@@ -137,6 +139,33 @@ export default {
     },
     methods: {
         isTrack, trackUrl,
+        async checkIndexStatus() {
+            const request = ++this.indexRequest
+            const wasSyncing = this.indexSyncing
+            try {
+                const status = await fetchIndexStatus()
+                if (this.disposed || request !== this.indexRequest) return
+                this.indexSyncing = status.syncing === true
+                if (status.error) this.refreshError = status.error
+                if (this.indexSyncing) {
+                    // The index endpoint has no push updates. Poll only while the startup scan runs.
+                    this.indexTimer = setTimeout(() => this.checkIndexStatus(), 2000)
+                } else if (wasSyncing && !status.error) {
+                    if (this.displayView.root.length) this.saveScroll()
+                    for (const tab of tabs) { ++this.views[tab].request; this.views[tab].loading = false }
+                    const activeTab = this.activeTab
+                    await Promise.all([
+                        this.loadTab('Folders', true, this.views.Folders.root.length > 0),
+                        ...(activeTab === 'Folders' ? [] : [this.loadTab(activeTab, true, this.views[activeTab].root.length > 0)])
+                    ])
+                }
+            } catch (error) {
+                if (!this.disposed && request === this.indexRequest) {
+                    this.indexSyncing = false
+                    this.refreshError = error.message || 'Could not check the library. Try refreshing it.'
+                }
+            }
+        },
         itemKey(item, index) { return isTrack(item) ? item.path : `${item.path || this.itemTitle(item)}:${index}` },
         itemIcon(item) { return isTrack(item) ? 'fas fa-music' : this.activeTab === 'Artists' ? 'fas fa-user' : 'fas fa-folder' },
         itemTitle(item) {
@@ -239,7 +268,7 @@ export default {
             }))
         },
         saveScroll() {
-            if (this.$refs.list && !this.displayView.loading) {
+            if (this.$refs.list && !this.displayView.loading && !(this.indexSyncing && this.displayView.root.length === 0)) {
                 if (this.isSearching) {
                     this.searchScroll = this.$refs.list.scrollTop
                     this.searchAnchor = this.$refs.libraryList?.getScrollAnchor() || null
@@ -254,6 +283,7 @@ export default {
             const searchAnchor = this.searchAnchor
             await nextTick()
             if (!this.$refs.list || this.disposed || search !== this.search) return
+            if (this.indexSyncing && this.views[tab].root.length === 0) return
             if (this.isSearching) {
                 if (tab === 'Folders') {
                     if (searchAnchor && this.$refs.libraryList) {
@@ -314,23 +344,29 @@ export default {
                 const root = await ({ Folders: fetchFolders, Albums: fetchAlbums, Artists: fetchArtists })[tab]()
                 if (request !== view.request || this.disposed) return
                 if (!Array.isArray(root)) throw new Error('The music server returned an invalid library. Try refreshing it.')
+                // Empty startup snapshots are provisional until the first status response arrives.
+                if (root.length === 0) {
+                    await this.initialIndexStatus
+                    if (request !== view.request || this.disposed) return
+                }
                 // API responses are replaced as snapshots, never edited in place.
                 markRaw(root)
                 const stack = [root]
-                const validRoute = []
+                const pendingEmptyIndex = this.indexSyncing && root.length === 0
+                const validRoute = pendingEmptyIndex ? [...view.route] : []
                 if (tab === 'Folders') {
                     // Prepare search data when the snapshot arrives, before the next keystroke.
                     this.searchIndex = markRaw(createSearchIndex(flattenTracks(root)))
                     let data = root
-                    for (const savedFolder of view.route) {
+                    for (const savedFolder of pendingEmptyIndex ? [] : view.route) {
                         const folder = data.find(item => !isTrack(item) && (item.path === savedFolder.path || item.name === savedFolder.name))
                         if (!folder) break
                         validRoute.push({ path: folder.path, name: folder.name })
                         data = folder.children
                         stack.push(data)
                     }
-                    this.restorePlayback(root)
-                } else if (view.route.length) {
+                    if (!pendingEmptyIndex) this.restorePlayback(root)
+                } else if (!pendingEmptyIndex && view.route.length) {
                     const savedItem = view.route[0]
                     const item = root.find(item => tab === 'Albums'
                         ? (item.album_artist ?? item.artist) === savedItem.artist && item.album === savedItem.album
@@ -474,28 +510,37 @@ export default {
         handleNext() { this.advance(1) },
         async refresh() {
             if (this.refreshing) return
+            clearTimeout(this.indexTimer)
+            ++this.indexRequest
             this.refreshing = true
             this.refreshError = ''
             this.refreshMessage = ''
             try {
                 await refreshLibrary()
                 if (this.disposed) return
+                this.indexSyncing = false
                 for (const tab of tabs) { ++this.views[tab].request; this.views[tab].loaded = false; this.views[tab].loading = false }
                 await this.loadTab('Folders', true)
                 if (this.activeTab !== 'Folders') await this.loadTab(this.activeTab, true)
                 if (!this.views.Folders.error && !this.activeView.error) this.refreshMessage = 'Library refreshed.'
             } catch (error) {
-                if (!this.disposed) this.refreshError = error.message || 'Could not refresh the library. Try again.'
+                if (!this.disposed) {
+                    this.indexSyncing = false
+                    this.refreshError = error.message || 'Could not refresh the library. Try again.'
+                }
             } finally {
                 if (!this.disposed) this.refreshing = false
             }
         }
     },
     created() {
+        this.initialIndexStatus = markRaw(this.checkIndexStatus())
         this.loadTab('Folders')
         if (this.activeTab !== 'Folders') this.loadTab(this.activeTab)
     },
     beforeUnmount() {
+        clearTimeout(this.indexTimer)
+        ++this.indexRequest
         this.saveScroll()
         this.persist()
         this.disposed = true
