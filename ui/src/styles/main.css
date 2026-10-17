@@ -6,20 +6,9 @@ html, body, #app {
     height: 100%;
 }
 
-html {
+html, .theme-swatch[data-theme="turquoise-dreams"] {
     --font-default: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light',
     'Ubuntu', 'Droid Sans', sans-serif;
-    --default-border-color: #8272ff;
-    --background-color: #483e9a;
-    --text-color: white;
-    --tab-active-background-color: #cec8ff;
-    --tab-active-text-color: var(--background-color);
-    --search-background-color: var(--tab-active-background-color);
-    --player-background-color: var(--search-background-color);
-    --player-text-color: black;
-}
-
-html.turqoise-dreams {
     --default-border-color: #25d4ac;
     --background-color: #034c50;
     --text-color: #25d4ac;
@@ -30,7 +19,18 @@ html.turqoise-dreams {
     --player-text-color: black;
 }
 
-html.royalty {
+html[data-theme="purple"], .theme-swatch[data-theme="purple"] {
+    --default-border-color: #8272ff;
+    --background-color: #483e9a;
+    --text-color: white;
+    --tab-active-background-color: #cec8ff;
+    --tab-active-text-color: var(--background-color);
+    --search-background-color: var(--tab-active-background-color);
+    --player-background-color: var(--search-background-color);
+    --player-text-color: black;
+}
+
+html[data-theme="royalty"], .theme-swatch[data-theme="royalty"] {
     --default-border-color: #ffbc00;
     --background-color: #013f42;
     --text-color: #f1ba57;
@@ -41,14 +41,13 @@ html.royalty {
     --player-text-color: black;
 }
 
-html.dark-mode {
+html[data-theme="dark"], .theme-swatch[data-theme="dark"] {
     --default-border-color: #3a3a3a;
     --background-color: #121212;
     --text-color: #f3efef;
     --tab-active-background-color: #3e3e3e;
     --tab-active-text-color: #ffffff;
     --search-background-color: #404040;
-    --nav-item-active-background-color: #202020;
     --player-background-color: var(--text-color);
     --player-text-color: black;
 }
@@ -59,13 +58,27 @@ body {
     user-select: none;
 }
 
-::-webkit-scrollbar {
-    width: 9px;
-    height: 5px;
-    background-color: #f3f2f2;
+* {
+    scrollbar-color: var(--tab-active-background-color) var(--background-color);
+    scrollbar-width: auto;
 }
 
+/* Custom Chromium/WebKit scrollbars stay visible and allow a usable minimum thumb size. */
+@supports selector(::-webkit-scrollbar) {
+    * { scrollbar-color: auto; }
+}
+
+::-webkit-scrollbar {
+    width: 0.65rem;
+    height: 0.65rem;
+    background-color: var(--background-color);
+}
+
+::-webkit-scrollbar-track { background-color: var(--background-color); }
+
 ::-webkit-scrollbar-thumb {
-    background: #dfdfdf;
-    height: 70%;
+    background: var(--tab-active-background-color);
+    border: 0.15rem solid var(--background-color);
+    border-radius: 1rem;
+    min-height: 2.5rem;
 }
